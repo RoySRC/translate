@@ -316,12 +316,16 @@ Zotero.Utilities.Translate.prototype.request = async function (url, options = {}
 
 	let internalOptions = {
 		headers: Object.assign({}, this._translate.requestHeaders, options.headers),
-		successCodes: options.successCodes,
-		body: options.body,
-		responseCharset: options.responseCharset,
-		responseType: options.responseType,
 		cookieSandbox: this._translate.cookieSandbox
 	};
+	// Only forward options the translator actually set, so that undefined values
+	// don't override the HTTP layer's defaults (e.g. successCodes: null => non-2xx
+	// responses rejected)
+	for (let key of ['successCodes', 'body', 'responseCharset', 'responseType']) {
+		if (options[key] !== undefined) {
+			internalOptions[key] = options[key];
+		}
+	}
 
 	// If the request fails or a non-successful status is returned, Zotero.HTTP.request rejects its promise.
 	// We let the Zotero.HTTP.UnexpectedStatusException bubble up to the caller.
@@ -337,9 +341,8 @@ Zotero.Utilities.Translate.prototype.request = async function (url, options = {}
 		}
 	}
 	catch (e) {
-		// As above
-		if (e instanceof Zotero.HTTP.UnexpectedStatusException
-				&& this._shouldClearChallengeInBrowser(url, e.status, e.xmlhttp)) {
+		// As above.
+		if (this._shouldClearChallengeInBrowser(url, e.status, e.xmlhttp)) {
 			await this._tryClearChallengeInBrowser(url);
 			xhr = await Zotero.HTTP.request(method, url, internalOptions);
 		}
